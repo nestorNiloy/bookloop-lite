@@ -1,0 +1,110 @@
+.cat-page { min-height: 100vh; background: var(--paper); }
+
+.cat-hero {
+  background: var(--gradient-hero);
+  position: relative;
+  overflow: hidden;
+  padding-bottom: 3rem;
+}
+
+.cat-hero__content {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 2.5rem 2rem 0;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
+.cat-hero__content h1 {
+  font-family: var(--font-display);
+  font-size: 2.4rem;
+  font-weight: 600;
+  color: white;
+  margin-bottom: 1.75rem;
+  letter-spacing: -0.01em;
+}
+
+.gradient-text-light {
+  background: linear-gradient(120deg, #FFD9A0, #FF9CC4);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.cat-search {
+  display: flex;
+  gap: 0.6rem;
+  background: rgba(255,255,255,0.14);
+  backdrop-filter: blur(10px);
+  padding: 0.5rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(255,255,255,0.2);
+}
+
+.cat-search__input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 0.6rem 1rem;
+  font-size: 0.95rem;
+  color: white;
+}
+.cat-search__input::placeholder { color: rgba(255,255,255,0.6); }
+.cat-search__input:focus { outline: none; }
+
+.cat-body { max-width: 1100px; margin: -2rem auto 0; padding: 0 2rem 3rem; position: relative; z-index: 2; }
+
+.cat-filters {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  background: white;
+  padding: 0.9rem;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  margin-bottom: 1.75rem;
+}
+
+.type-chip {
+  padding: 0.5rem 1.1rem;
+  border-radius: var(--radius-pill);
+  border: 1.5px solid var(--border);
+  background: white;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  transition: all 0.15s;
+}
+.type-chip:hover { border-color: var(--chip-color); color: var(--chip-color); }
+.type-chip.active {
+  background: var(--chip-color);
+  border-color: var(--chip-color);
+  color: white;
+}
+
+.cat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 1.25rem;
+}
+
+.cat-skeleton {
+  height: 240px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(90deg, var(--paper-dim) 25%, white 50%, var(--paper-dim) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+.cat-empty {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--ink-muted);
+}
+
+@media (max-width: 640px) {
+  .cat-hero__content h1 { font-size: 1.8rem; }
+  .cat-body { padding: 0 1rem 2rem; }
+}
