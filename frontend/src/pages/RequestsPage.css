@@ -1,0 +1,53 @@
+.req-page { min-height: 100vh; background: var(--paper); }
+.req-body { max-width: 720px; margin: 0 auto; padding: 2rem; }
+.req-body h1 { font-family: var(--font-display); font-size: 1.7rem; font-weight: 600; margin-bottom: 1.25rem; }
+
+.req-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+.req-tab {
+  padding: 0.55rem 1.2rem;
+  border-radius: var(--radius-pill);
+  border: 1.5px solid var(--border);
+  background: white;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.req-tab.active { background: var(--gradient-button); border-color: transparent; color: white; }
+
+.req-list { display: flex; flex-direction: column; gap: 1rem; }
+
+.req-card { padding: 1.2rem 1.4rem; }
+
+.req-card__top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem; }
+.req-card__top h3 { font-family: var(--font-display); font-size: 1.05rem; font-weight: 600; }
+.req-card__top p { font-size: 0.85rem; color: var(--ink-muted); margin-top: 2px; }
+
+.req-status {
+  font-size: 0.68rem; font-weight: 800; color: white;
+  padding: 4px 10px; border-radius: var(--radius-pill);
+  text-transform: uppercase; letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.req-message {
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+  font-style: italic;
+  background: var(--paper-dim);
+  padding: 0.6rem 0.9rem;
+  border-radius: var(--radius-sm);
+  margin: 0.6rem 0;
+}
+
+.req-contact {
+  font-size: 0.85rem;
+  background: #EFFBF4;
+  color: #067647;
+  padding: 0.6rem 0.9rem;
+  border-radius: var(--radius-sm);
+  margin: 0.6rem 0;
+}
+
+.req-actions { display: flex; gap: 0.6rem; margin-top: 0.8rem; }
+
+.req-empty { text-align: center; padding: 3rem; color: var(--ink-muted); }
