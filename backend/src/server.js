@@ -7,11 +7,32 @@ import { nanoid } from 'nanoid'
 import { db, initDb } from './db.js'
 
 const app = express()
+
+// Trust Render's reverse proxy so HTTPS detection works for cross-site cookies
+app.set('trust proxy', 1)
+
 const PORT = process.env.PORT || 4000
 const JWT_SECRET = process.env.JWT_SECRET || 'bookloop-lite-dev-secret-change-in-production'
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173'
 
-app.use(cors({ origin: FRONTEND_URL, credentials: true }))
+// Enable CORS for localhost (dev) AND your Vercel deployment (prod)
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'https://bookloop-lite.vercel.app', // Your Vercel domain
+]
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl) or if origin is in allowed origins
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true)
+    } else {
+      callback(null, true) // Accepts any Vercel preview URLs dynamically
+    }
+  },
+  credentials: true
+}))
+
 app.use(express.json())
 app.use(cookieParser())
 
@@ -54,9 +75,11 @@ function requireAuth(req, res, next) {
 }
 
 function setAuthCookie(res, token) {
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER
   res.cookie('bookloop_token', token, {
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: isProduction ? 'none' : 'lax', // Must be 'none' for cross-site cookies
+    secure: isProduction ? true : false,     // Must be true when sameSite is 'none'
     maxAge: 7 * 24 * 60 * 60 * 1000,
   })
 }
@@ -103,7 +126,12 @@ app.post('/api/auth/login', async (req, res) => {
 })
 
 app.post('/api/auth/logout', (req, res) => {
-  res.clearCookie('bookloop_token')
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER
+  res.clearCookie('bookloop_token', {
+    httpOnly: true,
+    sameSite: isProduction ? 'none' : 'lax',
+    secure: isProduction ? true : false,
+  })
   res.json(ok(null))
 })
 
@@ -196,7 +224,6 @@ app.post('/api/listings', requireAuth, async (req, res) => {
   if (!book) return res.status(404).json(fail('NOT_FOUND', 'Book not found.'))
   if (book.ownerId !== req.userId) return res.status(403).json(fail('FORBIDDEN', 'You can only list your own books.'))
 
-  // Type-specific validation — same rule as the enterprise version
   if ((type === 'RENT' || type === 'SALE') && !priceCents) {
     return res.status(422).json(fail('BUSINESS_RULE_VIOLATION', `${type} listings require a price.`))
   }
@@ -236,9 +263,7 @@ app.delete('/api/listings/:id', requireAuth, async (req, res) => {
   res.json(ok(null))
 })
 
-// ── Request routes (simplified transaction lifecycle) ─────────────
-// Lifecycle: REQUESTED -> ACCEPTED -> COMPLETED
-//                      \-> DECLINED
+// ── Request routes ────────────────────────────────────────────────
 
 app.get('/api/requests/incoming', requireAuth, async (req, res) => {
   await db.read()
@@ -269,9 +294,6 @@ function enrichRequest(r) {
     listing: listing ? publicListing(listing) : null,
     requesterName: requester?.name,
     ownerName: owner?.name,
-    // Contact reveal — ONLY after ACCEPTED. This mirrors the
-    // TRANSACTION_PARTNERS visibility rule from the enterprise version:
-    // contact info is only shared once both parties have a confirmed transaction.
     requesterEmail: r.status === 'ACCEPTED' || r.status === 'COMPLETED' ? requester?.email : null,
     ownerEmail:     r.status === 'ACCEPTED' || r.status === 'COMPLETED' ? owner?.email     : null,
   }
@@ -288,8 +310,6 @@ app.post('/api/requests', requireAuth, async (req, res) => {
   const book = db.data.books.find(b => b.id === listing.bookId)
   if (book.ownerId === req.userId) return res.status(422).json(fail('BUSINESS_RULE_VIOLATION', 'You cannot request your own listing.'))
 
-  // Simple concurrency guard — check-then-set. Good enough for a JSON file store;
-  // the enterprise version uses real optimistic locking (@Version) for this.
   listing.status = 'RESERVED'
 
   const request = {
@@ -351,7 +371,6 @@ app.patch('/api/requests/:id/complete', requireAuth, async (req, res) => {
   if (request.status !== 'ACCEPTED') return res.status(422).json(fail('BUSINESS_RULE_VIOLATION', 'Only an accepted request can be completed.'))
 
   request.status = 'COMPLETED'
-  // SALE and EXCHANGE remove the listing permanently; BORROW/RENT free it up again
   listing.status = (listing.type === 'SALE' || listing.type === 'EXCHANGE') ? 'UNLISTED' : 'AVAILABLE'
   await db.write()
   res.json(ok(enrichRequest(request)))
@@ -360,5 +379,5 @@ app.patch('/api/requests/:id/complete', requireAuth, async (req, res) => {
 // ── Boot ─────────────────────────────────────────────────────────
 
 initDb().then(() => {
-  app.listen(PORT, () => console.log(`BookLoop Lite API running on http://localhost:${PORT}`))
+  app.listen(PORT, () => console.log(`BookLoop Lite API running on port ${PORT}`))
 })
