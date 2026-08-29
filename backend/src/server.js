@@ -8,28 +8,15 @@ import { db, initDb } from './db.js'
 
 const app = express()
 
-// Trust Render's reverse proxy so HTTPS detection works for cross-site cookies
+// Trust Render's reverse proxy for secure HTTPS cookies
 app.set('trust proxy', 1)
 
 const PORT = process.env.PORT || 4000
 const JWT_SECRET = process.env.JWT_SECRET || 'bookloop-lite-dev-secret-change-in-production'
 
-// Enable CORS for localhost (dev) AND your Vercel deployment (prod)
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'https://bookloop-lite.vercel.app', // Your Vercel domain
-]
-
+// Dynamically reflect origin to allow any frontend domain (Vercel/localhost) with credentials
 app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl) or if origin is in allowed origins
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true)
-    } else {
-      callback(null, true) // Accepts any Vercel preview URLs dynamically
-    }
-  },
+  origin: true,
   credentials: true
 }))
 
@@ -78,8 +65,8 @@ function setAuthCookie(res, token) {
   const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER
   res.cookie('bookloop_token', token, {
     httpOnly: true,
-    sameSite: isProduction ? 'none' : 'lax', // Must be 'none' for cross-site cookies
-    secure: isProduction ? true : false,     // Must be true when sameSite is 'none'
+    sameSite: isProduction ? 'none' : 'lax', // Required for cross-domain Vercel <-> Render cookies
+    secure: isProduction ? true : false,     // Required when sameSite is 'none'
     maxAge: 7 * 24 * 60 * 60 * 1000,
   })
 }
