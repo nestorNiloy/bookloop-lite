@@ -1,73 +1,201 @@
 # BookLoop Lite
 
-A lightweight, single-evening version of BookLoop — a book exchange platform where members borrow, rent, buy, or trade books with each other.
+## Live Deployment
 
-This is the **simplified companion** to the full BookLoop project (Java/Spring Boot/PostgreSQL/Docker). It exists to show the same core product idea with a much smaller stack, a faster setup, and a distinct, gradient-forward visual identity.
+* **Web Application:** [https://bookloop-lite.vercel.app](https://bookloop-lite.vercel.app)
+* **Backend API:** [https://bookloop-lite-backend.onrender.com](https://bookloop-lite-backend.onrender.com)
 
-## What's the same as the full version
+> **Note for Reviewers:** The backend runs on Render's free tier and spins down after 15 minutes of inactivity. If the initial login or registration request takes 30–50 seconds, the server is waking up from a cold start—subsequent requests will respond immediately. Demo credentials are listed below.
 
-- Book / Listing separation (a book can have multiple listing types)
-- Four transaction types: Borrow, Rent, Buy, Exchange
-- Type-specific validation (Rent needs a price + duration, Borrow/Exchange must have none)
-- A simple request lifecycle: `REQUESTED → ACCEPTED → COMPLETED` (or `DECLINED`)
-- Contact information is only revealed once a request is **accepted** — mirroring the `TRANSACTION_PARTNERS` visibility rule from the full build
-- JWT auth in an HTTP-only cookie
+BookLoop Lite is a full-stack peer-to-peer book circulation platform that enables members to borrow, rent, buy, or swap physical books within a local community. 
 
-## What's deliberately left out
+Built as a lightweight, zero-infrastructure companion to the enterprise BookLoop platform (Java, Spring Boot, PostgreSQL, Docker), this implementation preserves the core domain modeling, state-machine workflows, and concurrency safeguards of the full system while running on a streamlined Node.js, Express, and React stack.
 
-No Docker, no PostgreSQL, no Testcontainers, no QR return tokens, no simulated payments, no background jobs. Those live in the full BookLoop project. This version is meant to be cloned and running in under two minutes.
+---
 
-## Stack
+## Core Functionality
 
-| Layer | Tech |
-|---|---|
-| Backend | Node.js, Express, lowdb (JSON file — zero native dependencies, works anywhere) |
-| Frontend | React, Vite, plain CSS (no framework) |
-| Auth | JWT in an HTTP-only cookie, bcrypt password hashing |
+* **Book and Listing Decoupling:** Separates physical inventory (`Books`) from market availability (`Listings`). A user adds a book to their personal shelf once and can publish multiple independent transaction offers (e.g., Borrow, Rent, Sale, or Exchange) for that single item.
+* **Four Transaction Models with Type-Specific Validation:**
+  * **Borrow:** Free temporary loan; enforces zero pricing.
+  * **Rent:** Paid temporary loan; requires both a rental fee and a maximum duration in days.
+  * **Sale:** Permanent ownership transfer; requires a purchase price.
+  * **Exchange:** Two-sided book swap; requires selecting an eligible, unencumbered book from the requester's own shelf.
+* **Mutual Resource Locking (Double-Spend Prevention):** Initiating a request immediately locks the target listing. For two-sided exchanges, the backend atomically locks both the requested book and the offered book across *all* of their active listings so neither asset can be promised to another user simultaneously.
+* **Privacy-Gated Contact Disclosure:** Participant email addresses remain redacted throughout the negotiation phase (`REQUESTED`) and are revealed only after the owner explicitly accepts the transaction (`ACCEPTED`).
+* **Automated Ownership Transfer:** Completing a `SALE` or `EXCHANGE` transaction atomically reassigns book ownership (`ownerId`) to the recipient and retires permanent listings, whereas `BORROW` and `RENT` completions return the listing to the public catalogue.
 
-## Running it
+---
 
-**Backend:**
+## System Architecture
+
+The application uses a decoupled client-server architecture deployed across Vercel (static edge delivery) and Render (persistent Node.js runtime), communicating via REST over HTTPS with cross-origin HTTP-only cookie authentication.
+
+```mermaid
+flowchart LR
+    subgraph Client ["Frontend (Vercel CDN)"]
+        UI["React 18 + Vite SPA"]
+        AuthCtx["AuthContext & Route Guards"]
+        Axios["Axios Client (withCredentials)"]
+        UI --> AuthCtx --> Axios
+    end
+
+    subgraph Server ["Backend API (Render Web Service)"]
+        CORS["CORS & Reverse Proxy Middleware"]
+        JWT["JWT Cookie Verification"]
+        Domain["Domain & Locking Engine"]
+        CORS --> JWT --> Domain
+    end
+
+    subgraph Storage ["Persistence Layer"]
+        LowDB[("lowdb (data.json)")]
+    end
+
+    Axios -- "HTTPS / JSON + HttpOnly Cookie" --> CORS
+    Domain -- "Atomic Read/Write" --> LowDB
+```
+
+---
+
+## Transaction & Locking Lifecycle
+
+Every request follows a deterministic state machine that governs catalogue visibility, asset locking, and ownership transfer:
+
+```mermaid
+flowchart TD
+    A["Listing: AVAILABLE"] -->|User submits request| B["Request: REQUESTED"]
+    B -->|Lock target listing + all listings of offered book| C["Listings: RESERVED (Hidden from Catalogue)"]
+    
+    C -->|Owner Declines| D["Request: DECLINED"]
+    D -->|Unlock all associated books| A
+
+    C -->|Owner Accepts| E["Request: ACCEPTED / Listings: ACTIVE"]
+    E -->|Unlock Partner Emails| F["Contact Information Revealed"]
+    
+    F -->|Either Party Marks Complete| G["Request: COMPLETED"]
+    G -->|BORROW / RENT| A
+    G -->|SALE / EXCHANGE| H["Transfer Book Ownership & Set Listings: UNLISTED"]
+```
+
+### Key Engineering Decisions
+
+1. **Two-Sided Exchange Integrity:** An exchange request cannot be submitted without a valid `offeredBookId` owned by the requester. The backend enforces ownership (`403 Forbidden` if unowned) and locks every active listing tied to both books. If a book is listed simultaneously for `SALE` and `EXCHANGE`, accepting an exchange automatically removes the `SALE` listing from the catalogue to prevent conflicting commitments.
+2. **Cross-Origin Session Security:** Authentication tokens are issued as `HttpOnly` JWT cookies configured with `SameSite=None`, `Secure`, and `trust proxy` support, preventing XSS token extraction while enabling authenticated cross-domain requests between Vercel and Render.
+3. **Zero-Config Persistence & Seeding:** Uses `lowdb` backed by a local JSON datastore (`backend/data.json`) that automatically initializes and seeds realistic demo users, books, and listings on cold boot if no database file exists.
+
+---
+
+## Tech Stack
+
+| Layer | Technology | Role |
+| :--- | :--- | :--- |
+| **Frontend** | React, Vite, React Router, Plain CSS | Single-page application with custom CSS design tokens and responsive layouts |
+| **HTTP Client** | Axios | Centralized API client with automatic environment base-URL switching |
+| **Backend** | Node.js, Express | RESTful API server, business rule enforcement, and resource locking |
+| **Authentication** | JSON Web Tokens (`jsonwebtoken`), `bcryptjs`, `cookie-parser` | Password hashing and stateless HTTP-only cookie sessions |
+| **Database** | `lowdb` | Lightweight JSON document store with zero native dependencies |
+| **Hosting** | Vercel (Frontend), Render (Backend) | Split-stack cloud deployment with SPA rewrite routing |
+
+---
+
+## API Reference
+
+### Authentication
+| Method | Endpoint | Auth | Description |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/auth/register` | Public | Create a new member account and issue session cookie |
+| `POST` | `/api/auth/login` | Public | Authenticate credentials and issue session cookie |
+| `POST` | `/api/auth/logout` | Public | Clear authentication cookie |
+| `GET` | `/api/auth/me` | Required | Return the currently authenticated user profile |
+
+### Books (Personal Shelf)
+| Method | Endpoint | Auth | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/books/mine` | Required | List all physical books owned by the current user |
+| `POST` | `/api/books` | Required | Add a new book to the user's shelf |
+| `DELETE` | `/api/books/:id` | Required | Remove a book (blocked if tied to an active/reserved deal) |
+
+### Listings (Public Catalogue)
+| Method | Endpoint | Auth | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/listings` | Public | Query available listings (supports `?type=`, `?genre=`, `?q=`) |
+| `GET` | `/api/listings/mine` | Required | List all active and historical listings for the user's books |
+| `POST` | `/api/listings` | Required | Publish a new listing for an owned book |
+| `DELETE` | `/api/listings/:id` | Required | Remove an `AVAILABLE` listing |
+
+### Requests (Transaction Lifecycle)
+| Method | Endpoint | Auth | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/requests/incoming` | Required | Fetch requests targeting the user's books |
+| `GET` | `/api/requests/outgoing` | Required | Fetch requests initiated by the user |
+| `POST` | `/api/requests` | Required | Initiate a request and lock involved book listings |
+| `PATCH` | `/api/requests/:id/accept` | Required | Owner accepts request; reveals partner contact emails |
+| `PATCH` | `/api/requests/:id/decline` | Required | Owner declines request; restores locked listings |
+| `PATCH` | `/api/requests/:id/complete` | Required | Finalize transaction; transfers ownership for sales/exchanges |
+
+---
+
+## Local Development Setup
+
+### Prerequisites
+* Node.js (v18 or higher)
+* npm
+
+### 1. Start the Backend API
 ```bash
 cd backend
 npm install
 npm start
 ```
-Runs on `http://localhost:4000`. Data is stored in `backend/data.json` and seeded automatically on first run.
+The API server starts on `http://localhost:4000` and automatically generates `backend/data.json` with seeded demo data.
 
-**Frontend:**
+### 2. Start the Frontend Client
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-Runs on `http://localhost:5173` with a proxy to the backend.
+The Vite development server starts on `http://localhost:5173`.
 
-## Demo accounts
+### Demo Accounts
+Three pre-seeded accounts are available out of the box to test multi-user exchange and approval workflows:
 
-| Email | Password |
-|---|---|
-| alice@bookloop.dev | password123 |
-| ben@bookloop.dev | password123 |
-| clara@bookloop.dev | password123 |
+| Name | Email | Password |
+| :--- | :--- | :--- |
+| Alice | `alice@bookloop.dev` | `password123` |
+| Ben | `ben@bookloop.dev` | `password123` |
+| Clara | `clara@bookloop.dev` | `password123` |
 
-## Design
+---
 
-The visual identity is a "golden hour reading" gradient — deep indigo fading through violet into coral and amber — paired with Fraunces (a characterful serif for display text) and Plus Jakarta Sans for body copy. Each listing type (Borrow, Rent, Buy, Exchange) gets its own accent color, carried consistently from the catalogue cards through to the listing detail page.
+## Project Structure
 
-## Project structure
-
-```
+```text
 bookloop-lite/
 ├── backend/
+│   ├── package.json
 │   └── src/
-│       ├── server.js   — all routes (auth, books, listings, requests)
-│       └── db.js       — lowdb setup + demo data seed
+│       ├── db.js                  # lowdb initialization and seed dataset
+│       └── server.js              # Express routes, CORS/cookie config, locking engine
 └── frontend/
+    ├── index.html
+    ├── package.json
+    ├── vercel.json                # SPA fallback routing configuration for Vercel
+    ├── vite.config.js
     └── src/
-        ├── pages/       — Login, Register, Catalogue, ListingDetail, Shelf, Requests
-        ├── components/  — Navbar, BookCard, AuthLayout
-        ├── AuthContext.jsx
-        ├── api.js
-        └── index.css    — full design system (gradients, glass cards, tokens)
+        ├── api.js                 # Axios instance with production/local base URL routing
+        ├── AuthContext.jsx        # Global session state and auth persistence
+        ├── App.jsx                # Protected route definitions
+        ├── index.css              # Design tokens, typography, and layout styles
+        ├── components/
+        │   ├── AuthLayout.jsx     # Split-screen authentication wrapper
+        │   ├── BookCard.jsx       # Catalogue listing card with transaction badges
+        │   └── Navbar.jsx         # Navigation header and active route indicators
+        └── pages/
+            ├── LoginPage.jsx
+            ├── RegisterPage.jsx
+            ├── CataloguePage.jsx      # Searchable and filterable public marketplace
+            ├── ListingDetailPage.jsx  # Listing view with mandatory swap book picker
+            ├── ShelfPage.jsx          # Personal inventory and listing creation
+            └── RequestsPage.jsx       # Incoming/outgoing transaction state management
 ```
