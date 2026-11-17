@@ -13,20 +13,6 @@ Built as a lightweight, zero-infrastructure companion to the enterprise BookLoop
 
 ---
 
-## Core Functionality
-
-* **Book and Listing Decoupling:** Separates physical inventory (`Books`) from market availability (`Listings`). A user adds a book to their personal shelf once and can publish multiple independent transaction offers (e.g., Borrow, Rent, Sale, or Exchange) for that single item.
-* **Four Transaction Models with Type-Specific Validation:**
-  * **Borrow:** Free temporary loan; enforces zero pricing.
-  * **Rent:** Paid temporary loan; requires both a rental fee and a maximum duration in days.
-  * **Sale:** Permanent ownership transfer; requires a purchase price.
-  * **Exchange:** Two-sided book swap; requires selecting an eligible, unencumbered book from the requester's own shelf.
-* **Mutual Resource Locking (Double-Spend Prevention):** Initiating a request immediately locks the target listing. For two-sided exchanges, the backend atomically locks both the requested book and the offered book across *all* of their active listings so neither asset can be promised to another user simultaneously.
-* **Privacy-Gated Contact Disclosure:** Participant email addresses remain redacted throughout the negotiation phase (`REQUESTED`) and are revealed only after the owner explicitly accepts the transaction (`ACCEPTED`).
-* **Automated Ownership Transfer:** Completing a `SALE` or `EXCHANGE` transaction atomically reassigns book ownership (`ownerId`) to the recipient and retires permanent listings, whereas `BORROW` and `RENT` completions return the listing to the public catalogue.
-
----
-
 ## System Architecture
 
 The application uses a decoupled client-server architecture deployed across Vercel (static edge delivery) and Render (persistent Node.js runtime), communicating via REST over HTTPS with cross-origin HTTP-only cookie authentication.
@@ -76,6 +62,21 @@ flowchart TD
     G -->|BORROW / RENT| A
     G -->|SALE / EXCHANGE| H["Transfer Book Ownership & Set Listings: UNLISTED"]
 ```
+
+---
+
+## Core Functionality
+
+* **Book and Listing Decoupling:** Separates physical inventory (`Books`) from market availability (`Listings`). A user adds a book to their personal shelf once and can publish multiple independent transaction offers (e.g., Borrow, Rent, Sale, or Exchange) for that single item.
+* **Four Transaction Models with Type-Specific Validation:**
+  * **Borrow:** Free temporary loan; enforces zero pricing.
+  * **Rent:** Paid temporary loan; requires both a rental fee and a maximum duration in days.
+  * **Sale:** Permanent ownership transfer; requires a purchase price.
+  * **Exchange:** Two-sided book swap; requires selecting an eligible, unencumbered book from the requester's own shelf.
+* **Mutual Resource Locking (Double-Spend Prevention):** Initiating a request immediately locks the target listing. For two-sided exchanges, the backend atomically locks both the requested book and the offered book across *all* of their active listings so neither asset can be promised to another user simultaneously.
+* **Privacy-Gated Contact Disclosure:** Participant email addresses remain redacted throughout the negotiation phase (`REQUESTED`) and are revealed only after the owner explicitly accepts the transaction (`ACCEPTED`).
+* **Automated Ownership Transfer:** Completing a `SALE` or `EXCHANGE` transaction atomically reassigns book ownership (`ownerId`) to the recipient and retires permanent listings, whereas `BORROW` and `RENT` completions return the listing to the public catalogue.
+
 
 ### Key Engineering Decisions
 
