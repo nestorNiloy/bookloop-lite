@@ -1,16 +1,11 @@
 # BookLoop Lite
 
-## Live Deployment
-
+BookLoop Lite is a full-stack peer-to-peer book circulation platform that enables members to borrow, rent, buy, or swap physical books within a local community. 
+Built as a lightweight, zero-infrastructure companion to the enterprise BookLoop platform (Java, Spring Boot, PostgreSQL, Docker), this implementation preserves the core domain modeling, state-machine workflows, and concurrency safeguards of the full system while running on a streamlined Node.js, Express, and React stack.
 * **Web Application:** [https://bookloop-lite.vercel.app](https://bookloop-lite.vercel.app)
 * **Backend API:** [https://bookloop-lite-backend.onrender.com](https://bookloop-lite-backend.onrender.com)
 
 > **Note for Reviewers:** The backend runs on Render's free tier and spins down after 15 minutes of inactivity. If the initial login or registration request takes 30–50 seconds, the server is waking up from a cold start—subsequent requests will respond immediately. Demo credentials are listed below.
-
-BookLoop Lite is a full-stack peer-to-peer book circulation platform that enables members to borrow, rent, buy, or swap physical books within a local community. 
-
-Built as a lightweight, zero-infrastructure companion to the enterprise BookLoop platform (Java, Spring Boot, PostgreSQL, Docker), this implementation preserves the core domain modeling, state-machine workflows, and concurrency safeguards of the full system while running on a streamlined Node.js, Express, and React stack.
-
 ---
 
 ## System Architecture
