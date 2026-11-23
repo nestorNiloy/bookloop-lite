@@ -35,7 +35,7 @@ test('BookLoop core transaction lifecycle and exchange integrity', { timeout: 30
   const port = await freePort()
   const baseUrl = 'http://127.0.0.1:' + port
   const child = spawn(process.execPath, ['src/server.js'], {
-    cwd: path.resolve('backend'),
+    cwd: process.cwd(),
     env: {
       ...process.env,
       PORT: String(port),
