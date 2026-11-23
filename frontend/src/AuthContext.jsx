@@ -8,15 +8,23 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    let active = true
     api.get('/auth/me')
-      .then(res => setUser(res.data.data))
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false))
+      .then(response => { if (active) setUser(response.data.data) })
+      .catch(() => { if (active) setUser(null) })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
   }, [])
 
   async function logout() {
-    await api.post('/auth/logout')
-    setUser(null)
+    try {
+      await api.post('/auth/logout')
+    } catch (error) {
+      // Clear local session even if the API is temporarily unavailable.
+      console.warn('Logout request could not reach the server.')
+    } finally {
+      setUser(null)
+    }
   }
 
   return (
