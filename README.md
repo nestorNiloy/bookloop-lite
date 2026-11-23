@@ -33,7 +33,7 @@ flowchart LR
     end
 
     Axios -- "HTTPS / JSON + HttpOnly Cookie" --> CORS
-    Domain -- "Atomic Read/Write" --> LowDB
+    Domain -- "Serialized Request Processing" --> LowDB
 ```
 
 ---
@@ -68,7 +68,7 @@ flowchart TD
   * **Rent:** Paid temporary loan; requires both a rental fee and a maximum duration in days.
   * **Sale:** Permanent ownership transfer; requires a purchase price.
   * **Exchange:** Two-sided book swap; requires selecting an eligible, unencumbered book from the requester's own shelf.
-* **Mutual Resource Locking (Double-Spend Prevention):** Initiating a request immediately locks the target listing. For two-sided exchanges, the backend atomically locks both the requested book and the offered book across *all* of their active listings so neither asset can be promised to another user simultaneously.
+* **Mutual Resource Locking (Double-Spend Prevention):** Initiating a request immediately locks the target listing. For two-sided exchanges, the backend reserves every available listing for both the requested book and the offered book before accepting another request so neither asset can be promised to another user simultaneously.
 * **Privacy-Gated Contact Disclosure:** Participant email addresses remain redacted throughout the negotiation phase (`REQUESTED`) and are revealed only after the owner explicitly accepts the transaction (`ACCEPTED`).
 * **Automated Ownership Transfer:** Completing a `SALE` or `EXCHANGE` transaction atomically reassigns book ownership (`ownerId`) to the recipient and retires permanent listings, whereas `BORROW` and `RENT` completions return the listing to the public catalogue.
 
@@ -77,9 +77,35 @@ flowchart TD
 
 1. **Two-Sided Exchange Integrity:** An exchange request cannot be submitted without a valid `offeredBookId` owned by the requester. The backend enforces ownership (`403 Forbidden` if unowned) and locks every active listing tied to both books. If a book is listed simultaneously for `SALE` and `EXCHANGE`, accepting an exchange automatically removes the `SALE` listing from the catalogue to prevent conflicting commitments.
 2. **Cross-Origin Session Security:** Authentication tokens are issued as `HttpOnly` JWT cookies configured with `SameSite=None`, `Secure`, and `trust proxy` support, preventing XSS token extraction while enabling authenticated cross-domain requests between Vercel and Render.
-3. **Zero-Config Persistence & Seeding:** Uses `lowdb` backed by a local JSON datastore (`backend/data.json`) that automatically initializes and seeds realistic demo users, books, and listings on cold boot if no database file exists.
+3. **Zero-Config Persistence & Seeding:** Uses lowdb backed by a local JSON datastore at backend/data.json. Requests are serialized within the single server process to avoid overlapping read-modify-write operations. The demo dataset is seeded when the datastore is empty.
 
 ---
+
+---
+
+## MVP Scope and Known Limitations
+
+BookLoop Lite is a portfolio MVP, not a production marketplace handling real money or physical delivery.
+
+* **Borrow and exchange:** End-to-end request, approval, reservation, decline, completion, and (for exchanges) two-way ownership transfer are implemented.
+* **Sale and rent:** Listing and request workflows are available. Sale completion transfers ownership. Rent currently records a fee and maximum duration but does not process payments, enforce rental periods, or manage returns.
+* **Payments and delivery:** No real payment provider, refunds, QR return verification, postal tracking, chat, or automated email/push notifications are integrated.
+* **Persistence:** The current lowdb JSON file is suitable for a small demonstration, not durable production storage. Render's free filesystem may be reset when the service restarts or is redeployed. Do not use the app for important personal records; migrate to a managed database before relying on persistent user data.
+* **Session secret:** Configure a strong JWT_SECRET environment variable on the backend host. If it is omitted, a temporary random secret is generated and sessions will be invalidated when the server restarts.
+
+## Automated Verification
+
+Run the backend integration tests:
+
+```bash
+cd backend
+npm ci
+npm test
+```
+
+The integration suite starts an isolated API instance and verifies authentication protection, required and owned exchange offers, reservation of both books, restoration after decline, ownership transfer after completion, the borrowing lifecycle, and invalid price rejection.
+
+GitHub Actions runs the backend integration suite and the frontend production build on pushes to the fix branches and pull requests targeting main.
 
 ## Tech Stack
 
