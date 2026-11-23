@@ -104,6 +104,23 @@ test('BookLoop core transaction lifecycle and exchange integrity', { timeout: 30
   })
   assert.equal(foreignOffer.status, 403)
 
+  const unlistedOfferResponse = await request('/api/books', {
+    method: 'POST', cookie: aliceCookie,
+    body: { title: 'Unlisted Offer Book', author: 'Test Author', condition: 'GOOD' },
+  })
+  assert.equal(unlistedOfferResponse.status, 201)
+  const pendingUnlistedOffer = await request('/api/requests', {
+    method: 'POST', cookie: aliceCookie,
+    body: { listingId: atomicListing.id, offeredBookId: unlistedOfferResponse.payload.data.id },
+  })
+  assert.equal(pendingUnlistedOffer.status, 201)
+  const listingDuringPendingOffer = await request('/api/listings', {
+    method: 'POST', cookie: aliceCookie,
+    body: { bookId: unlistedOfferResponse.payload.data.id, type: 'BORROW' },
+  })
+  assert.equal(listingDuringPendingOffer.status, 409)
+  assert.equal((await request('/api/requests/' + pendingUnlistedOffer.payload.data.id + '/decline', { method: 'PATCH', cookie: benCookie })).status, 200)
+
   const firstExchange = await request('/api/requests', {
     method: 'POST', cookie: aliceCookie,
     body: { listingId: atomicListing.id, offeredBookId: cleanCode.id, message: 'Would you like to swap?' },
