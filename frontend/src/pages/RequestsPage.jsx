@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Navbar from '../components/Navbar'
 import api from '../api'
 import './RequestsPage.css'
 
 const STATUS_COLORS = {
   REQUESTED: '#A855F7',
-  ACCEPTED:  '#10B981',
-  DECLINED:  '#EF4444',
+  ACCEPTED: '#10B981',
+  DECLINED: '#EF4444',
   COMPLETED: '#4E7FFF',
 }
 
@@ -14,20 +14,38 @@ export default function RequestsPage() {
   const [tab, setTab] = useState('incoming')
   const [incoming, setIncoming] = useState([])
   const [outgoing, setOutgoing] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [busyId, setBusyId] = useState(null)
 
-  function refresh() {
-    api.get('/requests/incoming').then(res => setIncoming(res.data.data))
-    api.get('/requests/outgoing').then(res => setOutgoing(res.data.data))
-  }
+  const refresh = useCallback(async () => {
+    setError(null)
+    try {
+      const [incomingResponse, outgoingResponse] = await Promise.all([
+        api.get('/requests/incoming'),
+        api.get('/requests/outgoing'),
+      ])
+      setIncoming(incomingResponse.data.data)
+      setOutgoing(outgoingResponse.data.data)
+    } catch (err) {
+      setError(err.response?.data?.error?.message ?? 'Could not load requests. Please refresh the page.')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
-  useEffect(refresh, [])
+  useEffect(() => { refresh() }, [refresh])
 
   async function act(id, action) {
+    setBusyId(id)
+    setError(null)
     try {
       await api.patch(`/requests/${id}/${action}`)
-      refresh()
+      await refresh()
     } catch (err) {
-      alert(err.response?.data?.error?.message ?? 'Action failed.')
+      setError(err.response?.data?.error?.message ?? 'Action failed. Please try again.')
+    } finally {
+      setBusyId(null)
     }
   }
 
@@ -36,10 +54,8 @@ export default function RequestsPage() {
   return (
     <div className="req-page">
       <Navbar />
-
       <div className="req-body">
         <h1>Requests</h1>
-
         <div className="req-tabs">
           <button className={`req-tab ${tab === 'incoming' ? 'active' : ''}`} onClick={() => setTab('incoming')}>
             Incoming ({incoming.length})
@@ -49,49 +65,58 @@ export default function RequestsPage() {
           </button>
         </div>
 
-        {list.length === 0 && (
-          <div className="req-empty">
-            <p>No {tab} requests yet.</p>
-          </div>
-        )}
+        {error && <div className="alert alert--error req-error">{error}</div>}
+        {loading && <div className="req-empty">Loading requests…</div>}
+        {!loading && list.length === 0 && <div className="req-empty"><p>No {tab} requests yet.</p></div>}
 
         <div className="req-list">
-          {list.map(r => (
-            <div className="req-card glass-card" key={r.id}>
+          {list.map(request => (
+            <div className="req-card glass-card" key={request.id}>
               <div className="req-card__top">
                 <div>
-                  <h3>{r.listing?.book?.title}</h3>
+                  <h3>{request.listing?.book?.title ?? 'Book listing'}</h3>
                   <p>
                     {tab === 'incoming'
-                      ? <>Requested by <strong>{r.requesterName}</strong></>
-                      : <>Owned by <strong>{r.ownerName}</strong></>}
+                      ? <>Requested by <strong>{request.requesterName}</strong></>
+                      : <>Owned by <strong>{request.ownerName}</strong></>}
                   </p>
+                  <span className="req-type">{request.listing?.type ?? 'REQUEST'}</span>
                 </div>
-                <span className="req-status" style={{ background: STATUS_COLORS[r.status] }}>
-                  {r.status}
+                <span className="req-status" style={{ background: STATUS_COLORS[request.status] ?? '#667085' }}>
+                  {request.status}
                 </span>
               </div>
 
-              {r.message && <p className="req-message">"{r.message}"</p>}
+              {request.listing?.type === 'EXCHANGE' && (
+                <div className="req-exchange">
+                  <strong>Offered in exchange:</strong>{' '}
+                  {request.offeredBook
+                    ? <>{request.offeredBook.title} <span>by {request.offeredBook.author}</span></>
+                    : <span className="req-missing">Offered book details unavailable</span>}
+                </div>
+              )}
+              {request.message && <p className="req-message">“{request.message}”</p>}
 
-              {/* Contact reveal — only shown once ACCEPTED or COMPLETED */}
-              {(r.status === 'ACCEPTED' || r.status === 'COMPLETED') && (
+              {(request.status === 'ACCEPTED' || request.status === 'COMPLETED') && (
                 <div className="req-contact">
-                  📬 Contact: <strong>{tab === 'incoming' ? r.requesterEmail : r.ownerEmail}</strong>
+                  📬 Contact: <strong>{tab === 'incoming' ? request.requesterEmail : request.ownerEmail}</strong>
                 </div>
               )}
 
-              {tab === 'incoming' && r.status === 'REQUESTED' && (
+              {tab === 'incoming' && request.status === 'REQUESTED' && (
                 <div className="req-actions">
-                  <button className="btn btn--gradient btn--sm" onClick={() => act(r.id, 'accept')}>Accept</button>
-                  <button className="btn btn--danger-ghost btn--sm" onClick={() => act(r.id, 'decline')}>Decline</button>
+                  <button className="btn btn--gradient btn--sm" disabled={busyId === request.id} onClick={() => act(request.id, 'accept')}>
+                    {busyId === request.id ? 'Working…' : 'Accept'}
+                  </button>
+                  <button className="btn btn--danger-ghost btn--sm" disabled={busyId === request.id} onClick={() => act(request.id, 'decline')}>
+                    Decline
+                  </button>
                 </div>
               )}
-
-              {r.status === 'ACCEPTED' && (
+              {request.status === 'ACCEPTED' && (
                 <div className="req-actions">
-                  <button className="btn btn--ghost btn--sm" onClick={() => act(r.id, 'complete')}>
-                    Mark as completed
+                  <button className="btn btn--ghost btn--sm" disabled={busyId === request.id} onClick={() => act(request.id, 'complete')}>
+                    {busyId === request.id ? 'Completing…' : 'Mark as completed'}
                   </button>
                 </div>
               )}
