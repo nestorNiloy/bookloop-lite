@@ -152,7 +152,7 @@ app.get('/api/auth/me', requireAuth, route(async (req, res) => {
 // Personal bookshelf
 app.get('/api/books/mine', requireAuth, route(async (req, res) => {
   await db.read()
-  return res.json(ok(db.data.books.filter(book => book.ownerId === req.userId).map(publicBook)))
+  return res.json(ok(db.data.books.filter(book => book.ownerId === req.userId).map(book => ({ ...publicBook(book), isLocked: isBookLocked(book.id) }))))
 }))
 app.post('/api/books', requireAuth, route(async (req, res) => {
   const title = clean(req.body?.title, 160)
