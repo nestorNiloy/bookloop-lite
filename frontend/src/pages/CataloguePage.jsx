@@ -18,6 +18,7 @@ export default function CataloguePage() {
   const [type, setType] = useState(null)
   const [query, setQuery] = useState('')
   const [searchInput, setSearchInput] = useState('')
+  const [reloadCounter, setReloadCounter] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -38,7 +39,7 @@ export default function CataloguePage() {
     }
     loadListings()
     return () => { cancelled = true }
-  }, [type, query])
+  }, [type, query, reloadCounter])
 
   function handleSearch(event) {
     event.preventDefault()
@@ -85,7 +86,7 @@ export default function CataloguePage() {
         {error && (
           <div className="alert alert--error cat-error">
             {error}{' '}
-            <button type="button" className="cat-retry" onClick={() => setType(current => current)}>Retry</button>
+            <button type="button" className="cat-retry" onClick={() => setReloadCounter(value => value + 1)}>Retry</button>
           </div>
         )}
         {loading && <div className="cat-grid">{Array.from({ length: 6 }).map((_, index) => <div key={index} className="cat-skeleton" />)}</div>}
