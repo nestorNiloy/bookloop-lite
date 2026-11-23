@@ -55,6 +55,7 @@ export default function ListingDetailPage() {
 
   const eligibleBooks = books.filter(book =>
     book.id !== listing?.bookId &&
+    !book.isLocked &&
     !myListings.some(item => item.bookId === book.id && ['RESERVED', 'ACTIVE'].includes(item.status))
   )
 
