@@ -10,14 +10,14 @@ import './index.css'
 
 function Protected({ children }) {
   const { user, loading } = useAuth()
-  if (loading) return null
+  if (loading) return <div className="app-loading">Loading BookLoop…</div>
   if (!user) return <Navigate to="/login" replace />
   return children
 }
 
 function Guest({ children }) {
   const { user, loading } = useAuth()
-  if (loading) return null
+  if (loading) return <div className="app-loading">Loading BookLoop…</div>
   if (user) return <Navigate to="/" replace />
   return children
 }
@@ -29,12 +29,10 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Guest><LoginPage /></Guest>} />
           <Route path="/register" element={<Guest><RegisterPage /></Guest>} />
-
           <Route path="/" element={<Protected><CataloguePage /></Protected>} />
           <Route path="/listings/:id" element={<Protected><ListingDetailPage /></Protected>} />
           <Route path="/shelf" element={<Protected><ShelfPage /></Protected>} />
           <Route path="/requests" element={<Protected><RequestsPage /></Protected>} />
-
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
