@@ -81,7 +81,11 @@ function listingsForBook(bookId) {
   return db.data.listings.filter(listing => listing.bookId === bookId)
 }
 function isBookLocked(bookId) {
-  return listingsForBook(bookId).some(listing => ACTIVE_STATUSES.has(listing.status))
+  const listingLocked = listingsForBook(bookId).some(listing => ACTIVE_STATUSES.has(listing.status))
+  const offeredInPendingExchange = db.data.requests.some(request =>
+    request.offeredBookId === bookId && (request.status === 'REQUESTED' || request.status === 'ACCEPTED')
+  )
+  return listingLocked || offeredInPendingExchange
 }
 function restoreLockedListings(request) {
   for (const listingId of request.lockedListingIds ?? [request.listingId]) {
