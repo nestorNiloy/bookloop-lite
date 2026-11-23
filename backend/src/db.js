@@ -6,7 +6,7 @@ import bcrypt from 'bcryptjs'
 import { nanoid } from 'nanoid'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const file = path.join(__dirname, '..', 'data.json')
+const file = process.env.BOOKLOOP_DB_FILE || path.join(__dirname, '..', 'data.json')
 
 const defaultData = { users: [], books: [], listings: [], requests: [] }
 

@@ -5,38 +5,49 @@ import api from '../api'
 import './CataloguePage.css'
 
 const TYPES = [
-  { value: 'BORROW',   label: 'Borrow',   color: 'var(--type-borrow)'   },
-  { value: 'RENT',     label: 'Rent',     color: 'var(--type-rent)'     },
-  { value: 'SALE',     label: 'Buy',      color: 'var(--type-sale)'     },
+  { value: 'BORROW', label: 'Borrow', color: 'var(--type-borrow)' },
+  { value: 'RENT', label: 'Rent', color: 'var(--type-rent)' },
+  { value: 'SALE', label: 'Buy', color: 'var(--type-sale)' },
   { value: 'EXCHANGE', label: 'Exchange', color: 'var(--type-exchange)' },
 ]
 
 export default function CataloguePage() {
   const [listings, setListings] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [type, setType] = useState(null)
   const [query, setQuery] = useState('')
   const [searchInput, setSearchInput] = useState('')
+  const [reloadCounter, setReloadCounter] = useState(0)
 
   useEffect(() => {
-    setLoading(true)
-    const params = new URLSearchParams()
-    if (type) params.set('type', type)
-    if (query) params.set('q', query)
+    let cancelled = false
+    async function loadListings() {
+      setLoading(true)
+      setError(null)
+      const params = new URLSearchParams()
+      if (type) params.set('type', type)
+      if (query) params.set('q', query)
+      try {
+        const response = await api.get('/listings?' + params.toString())
+        if (!cancelled) setListings(response.data.data)
+      } catch (err) {
+        if (!cancelled) setError(err.response?.data?.error?.message ?? 'Could not load the catalogue. Please try again.')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    loadListings()
+    return () => { cancelled = true }
+  }, [type, query, reloadCounter])
 
-    api.get(`/listings?${params}`)
-      .then(res => setListings(res.data.data))
-      .finally(() => setLoading(false))
-  }, [type, query])
-
-  function handleSearch(e) {
-    e.preventDefault()
+  function handleSearch(event) {
+    event.preventDefault()
     setQuery(searchInput.trim())
   }
 
   return (
     <div className="cat-page">
-      {/* Gradient hero strip */}
       <div className="cat-hero">
         <div className="gradient-orb" style={{ width: 260, height: 260, background: 'var(--grad-3)', top: -100, right: '15%' }} />
         <Navbar />
@@ -47,7 +58,8 @@ export default function CataloguePage() {
               className="cat-search__input"
               placeholder="Search by title or author…"
               value={searchInput}
-              onChange={e => setSearchInput(e.target.value)}
+              onChange={event => setSearchInput(event.target.value)}
+              maxLength={100}
             />
             <button className="btn btn--gradient" type="submit">Search</button>
           </form>
@@ -55,44 +67,31 @@ export default function CataloguePage() {
       </div>
 
       <div className="cat-body">
-        {/* Type filter chips */}
         <div className="cat-filters">
-          <button
-            className={`type-chip ${type === null ? 'active' : ''}`}
-            style={{ '--chip-color': 'var(--ink)' }}
-            onClick={() => setType(null)}
-          >
+          <button className={`type-chip ${type === null ? 'active' : ''}`} style={{ '--chip-color': 'var(--ink)' }} onClick={() => setType(null)}>
             All
           </button>
-          {TYPES.map(t => (
+          {TYPES.map(item => (
             <button
-              key={t.value}
-              className={`type-chip ${type === t.value ? 'active' : ''}`}
-              style={{ '--chip-color': t.color }}
-              onClick={() => setType(type === t.value ? null : t.value)}
+              key={item.value}
+              className={`type-chip ${type === item.value ? 'active' : ''}`}
+              style={{ '--chip-color': item.color }}
+              onClick={() => setType(type === item.value ? null : item.value)}
             >
-              {t.label}
+              {item.label}
             </button>
           ))}
         </div>
 
-        {loading && (
-          <div className="cat-grid">
-            {Array.from({ length: 6 }).map((_, i) => <div key={i} className="cat-skeleton" />)}
+        {error && (
+          <div className="alert alert--error cat-error">
+            {error}{' '}
+            <button type="button" className="cat-retry" onClick={() => setReloadCounter(value => value + 1)}>Retry</button>
           </div>
         )}
-
-        {!loading && listings.length === 0 && (
-          <div className="cat-empty">
-            <p>No listings match your search.</p>
-          </div>
-        )}
-
-        {!loading && listings.length > 0 && (
-          <div className="cat-grid">
-            {listings.map(listing => <BookCard key={listing.id} listing={listing} />)}
-          </div>
-        )}
+        {loading && <div className="cat-grid">{Array.from({ length: 6 }).map((_, index) => <div key={index} className="cat-skeleton" />)}</div>}
+        {!loading && !error && listings.length === 0 && <div className="cat-empty"><p>No listings match your search.</p></div>}
+        {!loading && listings.length > 0 && <div className="cat-grid">{listings.map(item => <BookCard key={item.id} listing={item} />)}</div>}
       </div>
     </div>
   )
