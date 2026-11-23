@@ -170,6 +170,37 @@ test('BookLoop core transaction lifecycle and exchange integrity', { timeout: 30
   assert.equal((await request('/api/requests/' + borrowRequest.payload.data.id + '/complete', { method: 'PATCH', cookie: aliceCookie })).status, 200)
   assert.equal((await request('/api/listings')).payload.data.some(item => item.book.title === 'The Pragmatic Programmer'), true)
 
+  // Rental completion follows the temporary-use path and releases the listing.
+  const claraLogin = await request('/api/auth/login', {
+    method: 'POST', body: { email: 'clara@bookloop.dev', password: 'password123' },
+  })
+  assert.equal(claraLogin.status, 200)
+  const claraCookie = claraLogin.cookie
+  const rentalListing = (await request('/api/listings?type=RENT')).payload.data.find(item => item.book.title === 'The Design of Everyday Things')
+  assert.ok(rentalListing)
+  const rentalRequest = await request('/api/requests', {
+    method: 'POST', cookie: aliceCookie, body: { listingId: rentalListing.id },
+  })
+  assert.equal(rentalRequest.status, 201)
+  assert.equal((await request('/api/requests/' + rentalRequest.payload.data.id + '/accept', { method: 'PATCH', cookie: claraCookie })).status, 200)
+  assert.equal((await request('/api/requests/' + rentalRequest.payload.data.id + '/complete', { method: 'PATCH', cookie: aliceCookie })).status, 200)
+  assert.equal((await request('/api/listings')).payload.data.some(item => item.book.title === 'The Design of Everyday Things'), true)
+
+  // Sale completion transfers ownership to the requester and retires the listing.
+  const saleListing = (await request('/api/listings?type=SALE')).payload.data.find(item => item.book.title === 'Sapiens')
+  assert.ok(saleListing)
+  const saleRequest = await request('/api/requests', {
+    method: 'POST', cookie: aliceCookie, body: { listingId: saleListing.id },
+  })
+  assert.equal(saleRequest.status, 201)
+  assert.equal((await request('/api/requests/' + saleRequest.payload.data.id + '/accept', { method: 'PATCH', cookie: claraCookie })).status, 200)
+  assert.equal((await request('/api/requests/' + saleRequest.payload.data.id + '/complete', { method: 'PATCH', cookie: aliceCookie })).status, 200)
+  const aliceAfterSale = await request('/api/books/mine', { cookie: aliceCookie })
+  const claraAfterSale = await request('/api/books/mine', { cookie: claraCookie })
+  assert.ok(aliceAfterSale.payload.data.some(book => book.id === saleListing.book.id && book.ownerId === aliceLogin.payload.data.id))
+  assert.equal(claraAfterSale.payload.data.some(book => book.id === saleListing.book.id), false)
+  assert.equal((await request('/api/listings')).payload.data.some(item => item.book.title === 'Sapiens'), false)
+
   const invalidPrice = await request('/api/listings', {
     method: 'POST', cookie: aliceCookie,
     body: { bookId: pragProg.id, type: 'RENT', priceCents: -10, maxDays: 7 },
